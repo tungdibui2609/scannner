@@ -6,20 +6,14 @@ import { getVNTimestamp } from "@/lib/vnDateTime";
 export async function POST(request: Request) {
     try {
         const { username, password } = await request.json();
-        console.log("Login attempt:", username);
 
         if (!username || !password) {
-            console.log("Missing credentials");
             return NextResponse.json({ message: "Thiếu tài khoản hoặc mật khẩu" }, { status: 400 });
         }
 
         // Xác thực với Google Sheet (kèm vị trí hàng)
-        console.log("Finding user in sheet:", USER_SHEET_ID, USER_SHEET_RANGE);
         const found = await findUserWithRow(USER_SHEET_ID, USER_SHEET_RANGE, username);
-        console.log("User found:", found ? "Yes" : "No");
-
         if (!found || found.user.password !== password) {
-            console.log("Password mismatch or user not found");
             return NextResponse.json({ message: "Sai tài khoản hoặc mật khẩu" }, { status: 401 });
         }
 
@@ -118,7 +112,8 @@ export async function POST(request: Request) {
         }
 
         return res;
-    } catch {
-        return NextResponse.json({ message: "Yêu cầu không hợp lệ" }, { status: 400 });
+    } catch (error: any) {
+        console.error("Login Error:", error);
+        return NextResponse.json({ message: "Lỗi đăng nhập: " + (error?.message || String(error)) }, { status: 400 });
     }
 }
