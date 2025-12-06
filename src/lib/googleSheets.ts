@@ -8,7 +8,10 @@ ensureGoogleKeyFromB64();
 export async function getSheets(scopes: string[]) {
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!email || !key) throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY");
+    if (!email || !key) {
+        console.error("Missing Google Env Vars:", { email: !!email, key: !!key });
+        throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY");
+    }
     const jwt = new google.auth.JWT({ email, key, scopes });
     return google.sheets({ version: "v4", auth: jwt });
 }
