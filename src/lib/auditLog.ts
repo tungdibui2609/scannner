@@ -1,17 +1,13 @@
 import { google } from "googleapis";
-import { ensureGoogleKeyFromB64 } from "@/lib/env";
+import { getGoogleCredentials } from "@/lib/env";
 import { AUDIT_LOG_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
-
-ensureGoogleKeyFromB64();
 
 function getTab(range: string) {
     return range.split("!")[0];
 }
 
 async function getSheets(scopes: string[]) {
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!email || !key) throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY");
+    const { email, key } = getGoogleCredentials();
     const jwt = new google.auth.JWT({ email, key, scopes });
     return google.sheets({ version: "v4", auth: jwt });
 }

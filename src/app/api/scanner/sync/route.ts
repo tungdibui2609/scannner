@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { ensureGoogleKeyFromB64 } from "@/lib/env";
+import { ensureGoogleKeyFromB64, getGoogleCredentials } from "@/lib/env";
 import { LOT_POSITIONS_SHEET_RANGE, LOTS_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
 import { appendAuditLog } from "@/lib/auditLog";
 import { getVNTimestamp } from "@/lib/vnDateTime";
@@ -9,9 +9,7 @@ import { cookies } from "next/headers";
 ensureGoogleKeyFromB64();
 
 async function getSheets(scopes: string[]) {
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!email || !key) throw new Error("Missing Google credentials");
+    const { email, key } = getGoogleCredentials();
     const jwt = new google.auth.JWT({ email, key, scopes });
     return google.sheets({ version: "v4", auth: jwt });
 }

@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { ensureGoogleKeyFromB64 } from "@/lib/env";
+import { ensureGoogleKeyFromB64, getGoogleCredentials } from "@/lib/env";
 import { LOTS_SHEET_RANGE, LOT_POSITIONS_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
 
 ensureGoogleKeyFromB64();
 
 async function getSheets(scopes: string[]) {
-    const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!clientEmail || !privateKey) throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY trong biến môi trường");
+    const { email: clientEmail, key: privateKey } = getGoogleCredentials();
     const jwt = new google.auth.JWT({ email: clientEmail, key: privateKey, scopes });
     return google.sheets({ version: "v4", auth: jwt });
 }

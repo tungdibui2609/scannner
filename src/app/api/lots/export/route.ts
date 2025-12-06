@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { ensureGoogleKeyFromB64 } from "@/lib/env";
+import { ensureGoogleKeyFromB64, getGoogleCredentials } from "@/lib/env";
 import { LOTS_SHEET_RANGE, DELETED_LOTS_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
 import { appendAuditLog } from "@/lib/auditLog";
 import { cookies } from "next/headers";
@@ -14,9 +14,7 @@ const LOTS_TAB = LOTS_SHEET_RANGE.split("!")[0];
 const DELETED_LOTS_TAB = DELETED_LOTS_SHEET_RANGE.split("!")[0];
 
 async function getSheets(scopes: string[]) {
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!email || !key) throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY");
+    const { email, key } = getGoogleCredentials();
     const jwt = new google.auth.JWT({ email, key, scopes });
     return google.sheets({ version: "v4", auth: jwt });
 }
