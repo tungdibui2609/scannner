@@ -5,9 +5,9 @@ export const GOOGLE_SHEET_ID = process.env.SHEET_ID || "";
 
 // DATA TABLES
 // DATA TABLES
-export const LOTS_SHEET_RANGE = "lot!A2:S";       // A=Lot, B=Product, ... S=DeletedReason
+export const LOTS_SHEET_RANGE = "lot!A1:S";       // A=Lot, B=Product, ... S=DeletedReason
 export const DELETED_LOTS_SHEET_RANGE = "deletelot!A1:S"; // A=Lot, ... Q=DeletedAt, R=DeletedBy, S=Reason
-export const PRODUCTS_SHEET_RANGE = "Products!A2:M"; // A=Code, B=Name, C=Group, D-F=UOM, G-H=Ratio, I=Spec, J=Desc, K=Img
+export const PRODUCTS_SHEET_RANGE = "Products!A1:M"; // A=Code, B=Name, C=Group, D-F=UOM, G-H=Ratio, I=Spec, J=Desc, K=Img
 export const LOCATIONS_SHEET_RANGE = "loc_map!A2:C"; // A=Code, B=Type, C=Desc (Referential)
 export const PRODUCTS_DISABLED_CODES_RANGE = "Products!P2:P"; // NEW: Disabled product codes
 
