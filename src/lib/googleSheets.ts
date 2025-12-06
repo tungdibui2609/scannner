@@ -1,27 +1,18 @@
 import { google } from "googleapis";
-import { ensureGoogleKeyFromB64 } from "./env";
+import { ensureGoogleKeyFromB64, getGoogleCredentials } from "./env";
 import { PERMISSIONS_SHEET_RANGE } from "@/config/sheets";
 import { Product } from "@/types/lot";
 
 ensureGoogleKeyFromB64();
 
 export async function getSheets(scopes: string[]) {
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!email || !key) {
-        console.error("Missing Google Env Vars:", { email: !!email, key: !!key });
-        throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY");
-    }
+    const { email, key } = getGoogleCredentials();
     const jwt = new google.auth.JWT({ email, key, scopes });
     return google.sheets({ version: "v4", auth: jwt });
 }
 
 export async function getSheetRows(sheetId: string, range: string) {
-    const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!clientEmail || !privateKey) {
-        throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY trong biến môi trường");
-    }
+    const { email: clientEmail, key: privateKey } = getGoogleCredentials();
     const scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
     const jwt = new google.auth.JWT({
         email: clientEmail,
@@ -114,11 +105,7 @@ export async function findUserWithRow(sheetId: string, range: string, username: 
 }
 
 export async function updateUserStatus(sheetId: string, tabName: string, header: string[], rowIndex: number, status: string) {
-    const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!clientEmail || !privateKey) {
-        throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY trong biến môi trường");
-    }
+    const { email: clientEmail, key: privateKey } = getGoogleCredentials();
     const scopes = ["https://www.googleapis.com/auth/spreadsheets"];
     const jwt = new google.auth.JWT({ email: clientEmail, key: privateKey, scopes });
     const sheets = google.sheets({ version: "v4", auth: jwt });
@@ -137,11 +124,7 @@ export async function updateUserStatus(sheetId: string, tabName: string, header:
 }
 
 export async function updateUserLastSeen(sheetId: string, tabName: string, header: string[], rowIndex: number, isoValue: string) {
-    const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n");
-    if (!clientEmail || !privateKey) {
-        throw new Error("Thiếu GOOGLE_SERVICE_ACCOUNT_EMAIL/KEY trong biến môi trường");
-    }
+    const { email: clientEmail, key: privateKey } = getGoogleCredentials();
     const scopes = ["https://www.googleapis.com/auth/spreadsheets"];
     const jwt = new google.auth.JWT({ email: clientEmail, key: privateKey, scopes });
     const sheets = google.sheets({ version: "v4", auth: jwt });

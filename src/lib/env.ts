@@ -4,9 +4,18 @@
  */
 export const getGoogleCredentials = () => {
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-        ? process.env.GOOGLE_SERVICE_ACCOUNT_KEY.replace(/\\n/g, "\n")
-        : undefined;
+    let key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "";
+    if (key) {
+        // Handle escaped newlines
+        key = key.replace(/\\n/g, "\n");
+        // Remove surrounding quotes if present (common env var issue)
+        if (key.startsWith('"') && key.endsWith('"')) {
+            key = key.slice(1, -1);
+        }
+        if (key.startsWith("'") && key.endsWith("'")) {
+            key = key.slice(1, -1);
+        }
+    }
 
     if (!email || !key) {
         throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_SERVICE_ACCOUNT_KEY");
