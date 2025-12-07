@@ -260,14 +260,13 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                     lotId = pathParts[qrIndex + 1];
                 }
             }
+            lotId = lotId.trim();
 
-            if (lotId === lastScanned) {
-                isProcessingRef.current = false;
-                return;
-            }
-
-            // Close scanner immediately to prevent duplicate scans
+            // Close scanner immediately
             setShowScanner(false);
+
+            // Scroll to top to show the item
+            window.scrollTo({ top: 0, behavior: 'smooth' });
 
             // 1. Check Offline/Cache first (Fastest & Works Offline)
             if (mergedLots[lotId]) {
