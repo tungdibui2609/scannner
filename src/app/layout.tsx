@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "Scanner - AnyWarehouse",
   description: "Ứng dụng quét mã kho",
   manifest: "/manifest-scanner.json",
+  icons: {
+    icon: "/scanner-icon.png",
+    apple: "/scanner-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
