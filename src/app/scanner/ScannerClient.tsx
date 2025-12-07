@@ -197,13 +197,36 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                         localStorage.setItem("offline_merged_lots", JSON.stringify(data.mergedLots));
                     }
 
+                    // Sync Active Lots to List
+                    if (Array.isArray(data.activeLots)) {
+                        const serverItems: ScannedItem[] = data.activeLots.map((l: any) => ({
+                            id: l.lotCode,
+                            // Use a slightly older timestamp to ensure they appear as "original" but keep sort order
+                            timestamp: Date.now() - 1000,
+                            position: l.position,
+                            synced: true
+                        }));
+
+                        setItems(prev => {
+                            // 1. Keep all local UNSYNCED items (User work in progress)
+                            const localUnsynced = prev.filter(i => !i.synced);
+                            const localUnsyncedIds = new Set(localUnsynced.map(i => i.id));
+
+                            // 2. Filter server items that don't conflict with local unsynced
+                            const validServerItems = serverItems.filter(i => !localUnsyncedIds.has(i.id));
+
+                            // 3. Combine
+                            return [...localUnsynced, ...validServerItems];
+                        });
+                    }
+
                     const now = Date.now();
                     setLastUpdated(now);
                     localStorage.setItem("offline_data_last_updated", now.toString());
                     showDialog({
                         type: "info",
                         title: "Thành công",
-                        message: "Đã tải xong dữ liệu hàng hóa!",
+                        message: `Đã tải xong dữ liệu hàng hóa!\n(Tìm thấy ${data.activeLots?.length || 0} vị trí đã lưu)`,
                     });
                 }
             } else {

@@ -16,6 +16,7 @@ export async function GET() {
         const sheets = await getSheets(["https://www.googleapis.com/auth/spreadsheets.readonly"]);
         const occupied: Record<string, string> = {};
         const mergedLots: Record<string, string> = {};
+        const activeLots: Array<{ lotCode: string; position: string }> = [];
 
         try {
             // 1. Try fetching from LOTS sheet (column O for Position, Q for Status, R for MergedTo)
@@ -31,6 +32,11 @@ export async function GET() {
                 const mergedTo = (r[17] || '').toString().trim();
 
                 if (lot) {
+                    // Collect active lots for full sync
+                    if (pos) {
+                        activeLots.push({ lotCode: lot, position: pos });
+                    }
+
                     // Collect occupied positions
                     if (pos && !seen.has(lot)) {
                         seen.add(lot);
@@ -68,7 +74,8 @@ export async function GET() {
         return NextResponse.json({
             ok: true,
             occupied,
-            mergedLots
+            mergedLots,
+            activeLots
         });
     } catch (error) {
         console.error("Failed to fetch occupied positions:", error);
