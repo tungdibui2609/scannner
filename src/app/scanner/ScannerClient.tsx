@@ -1137,7 +1137,7 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             </div>
 
             <div className="text-[10px] text-zinc-300 text-center py-4 mt-auto">
-                Scanner App v1.3 - Created by Anywarehouse
+                Scanner App V.1.5.1 - Created by Anywarehouse
             </div>
         </div>
     );
