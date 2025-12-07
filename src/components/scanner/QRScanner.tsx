@@ -18,8 +18,18 @@ export default function QRScanner({ onScan, onError }: QRScannerProps) {
     useEffect(() => {
         // Cleanup on unmount
         return () => {
-            if (scannerRef.current && isScanning) {
-                scannerRef.current.stop().catch(console.error);
+            if (scannerRef.current) {
+                try {
+                    // Attempt to stop, suppress errors if element already gone
+                    if (isScanning) {
+                        scannerRef.current.stop().catch((err) => {
+                            console.warn("Scanner stop warning:", err);
+                        });
+                    }
+                    scannerRef.current.clear();
+                } catch (e) {
+                    console.warn("Scanner cleanup error:", e);
+                }
             }
         };
     }, [isScanning]);
