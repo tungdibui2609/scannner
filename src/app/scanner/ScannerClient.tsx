@@ -325,8 +325,26 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             }
 
             setLastScanned(lotId);
-            const newItem: ScannedItem = { id: lotId, timestamp: Date.now(), position: "", synced: false };
-            setItems(prev => [newItem, ...prev]);
+            setItems(prev => {
+                const existingIndex = prev.findIndex(i => i.id === lotId);
+                const newItem: ScannedItem = {
+                    id: lotId,
+                    timestamp: Date.now(),
+                    position: existingIndex !== -1 ? prev[existingIndex].position : "",
+                    synced: false // Always unlock for editing
+                };
+
+                if (existingIndex !== -1) {
+                    // Remove old instance
+                    const newItems = [...prev];
+                    newItems.splice(existingIndex, 1);
+                    // Add updated instance to top
+                    return [newItem, ...newItems];
+                }
+
+                // Add new item
+                return [newItem, ...prev];
+            });
 
             const audio = new Audio('/beep.mp3');
             audio.play().catch(() => { });
