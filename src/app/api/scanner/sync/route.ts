@@ -65,26 +65,6 @@ export async function POST(request: Request) {
             }
         } catch { }
 
-        // Read lot_pos sheet ONCE for conflict checking and UPSERT logic
-        const cur = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOT_POSITIONS_SHEET_RANGE });
-        const rows = cur.data.values || [];
-        const data = rows.slice(1); // Skip header
-
-        // Create a map of Position -> LotCode for conflict lookup
-        const positionMap = new Map<string, string>();
-        // Create a map of LotCode -> Row number (1-based) for UPSERT logic
-        const lotPositionRows = new Map<string, number>();
-
-        data.forEach((r: any[], index: number) => {
-            const lCode = (r[0] || "").toString().trim();
-            const pCode = (r[1] || "").toString().trim();
-            if (pCode) positionMap.set(pCode.toUpperCase(), lCode);
-            // Store the first row for each LOT (for UPSERT - update existing row)
-            if (lCode && !lotPositionRows.has(lCode)) {
-                lotPositionRows.set(lCode, index + 2); // +2: skip header (1) and convert to 1-based index
-            }
-        });
-
         for (const item of items) {
             const { id: lotCode, position: posCode } = item;
 
@@ -94,48 +74,70 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            const targetPos = posCode.trim().toUpperCase();
-            const currentOccupant = positionMap.get(targetPos);
-
-            // Conflict Check: If position is occupied by a DIFFERENT Lot
-            if (currentOccupant && currentOccupant !== lotCode.trim()) {
-                failCount++;
-                results.push({
-                    lotCode,
-                    success: false,
-                    error: `Conflict: Position ${posCode} is already occupied by ${currentOccupant}`,
-                    conflict: true,
-                    currentOccupant
-                });
-                console.warn(`✗ Conflict ${lotCode} -> ${posCode} (Occupied by ${currentOccupant})`);
-                continue;
-            }
-
-            // Check if this LOT already has a position assignment (same position = skip)
-            const existingRow = lotPositionRows.get(lotCode.trim());
-            const existingPos = existingRow ? positionMap.get(targetPos) : null;
-
-            // If same LOT already assigned to same position, skip
-            if (existingRow && currentOccupant === lotCode.trim()) {
-                successCount++;
-                results.push({ lotCode, success: true, message: "Already assigned" });
-                console.log(`✓ Skipped (Same assignment) ${lotCode} -> ${posCode}`);
-                continue;
-            }
-
             try {
-                // UPSERT Logic: UPDATE if LOT exists, APPEND if new
-                if (existingRow) {
-                    // UPDATE existing row (like QLK dashboard)
+                // Re-read lot_pos sheet for each item to get fresh data (same as QLK dashboard)
+                const cur = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOT_POSITIONS_SHEET_RANGE });
+                const rows = cur.data.values || [];
+                const data = rows.slice(1); // Skip header
+
+                // Find existing row for this LOT (same logic as QLK dashboard PUT method)
+                const idx = data.findIndex((r: any[]) => ((r?.[0] || "").toString().trim() === lotCode.trim()));
+                const oldPosCode = idx >= 0 ? ((data[idx]?.[1] || '').toString().trim()) : '';
+
+                // Check for conflict: target position occupied by DIFFERENT lot
+                const targetPos = posCode.trim().toUpperCase();
+                let conflictLot = "";
+                for (const r of data) {
+                    const rPos = (r?.[1] || "").toString().trim().toUpperCase();
+                    const rLot = (r?.[0] || "").toString().trim();
+                    if (rPos === targetPos && rLot !== lotCode.trim()) {
+                        conflictLot = rLot;
+                        break;
+                    }
+                }
+
+                if (conflictLot) {
+                    failCount++;
+                    results.push({
+                        lotCode,
+                        success: false,
+                        error: `Conflict: Position ${posCode} is already occupied by ${conflictLot}`,
+                        conflict: true,
+                        currentOccupant: conflictLot
+                    });
+                    console.warn(`✗ Conflict ${lotCode} -> ${posCode} (Occupied by ${conflictLot})`);
+                    continue;
+                }
+
+                // Check if same assignment already exists - skip write
+                if (idx >= 0 && oldPosCode.toUpperCase() === targetPos) {
+                    successCount++;
+                    results.push({ lotCode, success: true, message: "Already assigned" });
+                    console.log(`✓ Skipped (Same assignment) ${lotCode} -> ${posCode}`);
+                    continue;
+                }
+
+                // UPSERT Logic: UPDATE if LOT exists in lot_pos, APPEND if new (exactly like QLK dashboard)
+                if (idx >= 0) {
+                    // UPDATE existing row
+                    const absoluteRow = 2 + idx; // +2: row 1 is header, data starts at row 2
                     await sheets.spreadsheets.values.update({
                         spreadsheetId: USER_SHEET_ID,
-                        range: `${tab}!A${existingRow}:B${existingRow}`,
+                        range: `${tab}!A${absoluteRow}:B${absoluteRow}`,
                         valueInputOption: "RAW",
                         requestBody: { values: [[lotCode.trim(), posCode.trim()]] },
                     });
-                    console.log(`✓ Updated ${lotCode} -> ${posCode} (Row ${existingRow})`);
+                    console.log(`✓ Updated ${lotCode} -> ${posCode} (Row ${absoluteRow}, was ${oldPosCode})`);
                 } else {
                     // APPEND new row
+                    if (!rows.length) {
+                        await sheets.spreadsheets.values.update({
+                            spreadsheetId: USER_SHEET_ID,
+                            range: `${tab}!A1:B1`,
+                            valueInputOption: "RAW",
+                            requestBody: { values: [["LotCode", "PositionCode"]] },
+                        });
+                    }
                     await sheets.spreadsheets.values.append({
                         spreadsheetId: USER_SHEET_ID,
                         range: `${tab}!A:B`,
@@ -146,7 +148,7 @@ export async function POST(request: Request) {
                     console.log(`✓ Appended ${lotCode} -> ${posCode}`);
                 }
 
-                // Update LOTS sheet column O (Position) - Update to LATEST scanned position
+                // Update LOTS sheet column O (Position) - same as QLK dashboard
                 const resLots = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOTS_SHEET_RANGE });
                 const rowsLots = resLots.data.values || [];
                 const toUpdateRows: number[] = [];
@@ -166,28 +168,23 @@ export async function POST(request: Request) {
                 }
 
                 // Audit log
+                const auditDetails: any = { lotCode: lotCode.trim(), posCode: posCode.trim() };
+                if (oldPosCode && oldPosCode !== posCode.trim()) {
+                    auditDetails.oldPosCode = oldPosCode;
+                }
+                auditDetails.action = idx >= 0 ? "Cập nhật vị trí (từ QR)" : "Gán vị trí (từ QR)";
+
                 appendAuditLog({
                     ts: getVNTimestamp(),
                     username: username || "unknown",
                     name: nameFromCookie || undefined,
                     method: "PUT",
                     path: "/api/locations/positions",
-                    details: {
-                        lotCode: lotCode.trim(),
-                        posCode: posCode.trim(),
-                        action: existingRow ? "Cập nhật vị trí (từ QR)" : "Gán vị trí (từ QR)"
-                    }
+                    details: auditDetails
                 });
 
                 successCount++;
                 results.push({ lotCode, success: true });
-
-                // Update local maps for subsequent items in the same batch
-                positionMap.set(targetPos, lotCode.trim());
-                if (!existingRow) {
-                    // Approximate: We don't know exact row, but it won't be used in same batch anyway
-                    lotPositionRows.set(lotCode.trim(), rows.length + 1);
-                }
 
             } catch (err: any) {
                 failCount++;
