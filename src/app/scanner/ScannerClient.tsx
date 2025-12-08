@@ -32,7 +32,6 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
     const [locations, setLocations] = useState<string[]>([]);
     const [occupied, setOccupied] = useState<Record<string, string>>({});
     const [suggestions, setSuggestions] = useState<Array<{ code: string; lotCode?: string }>>([]);
-    const [mergedLots, setMergedLots] = useState<Record<string, string>>({});
     const [activeInputIndex, setActiveInputIndex] = useState<number | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
@@ -116,12 +115,7 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             } catch (e) { }
         }
 
-        const savedMergedLots = localStorage.getItem("offline_merged_lots");
-        if (savedMergedLots) {
-            try {
-                setMergedLots(JSON.parse(savedMergedLots));
-            } catch (e) { }
-        }
+
 
         const savedLastUpdated = localStorage.getItem("offline_data_last_updated");
         if (savedLastUpdated) {
@@ -192,11 +186,6 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                 if (data.ok && data.occupied) {
                     setOccupied(data.occupied);
                     localStorage.setItem("offline_occupied_locations", JSON.stringify(data.occupied));
-
-                    if (data.mergedLots) {
-                        setMergedLots(data.mergedLots);
-                        localStorage.setItem("offline_merged_lots", JSON.stringify(data.mergedLots));
-                    }
 
                     // Sync Active Lots to List -> DISABLED as per user request (restore old behavior)
                     // if (Array.isArray(data.activeLots)) {
@@ -270,28 +259,10 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
             // 1. Check Offline/Cache first (Fastest & Works Offline)
-            if (mergedLots[lotId]) {
-                const newLotId = mergedLots[lotId];
-                showDialog({
-                    type: "warning",
-                    title: "Phát hiện Lot đã gộp",
-                    message: `Lot ${lotId} đã được gộp sang ${newLotId}.\nBạn có muốn sử dụng mã ${newLotId} thay thế không?`,
-                    confirmText: "Dùng mã mới",
-                    cancelText: "Giữ mã cũ",
-                    onConfirm: () => {
-                        handleScan(newLotId); // Recursive call with new ID
-                        closeDialog();
-                    },
-                    onCancel: () => {
-                        // Continue with old ID (if user insists)
-                        // Logic to add old ID...
-                        closeDialog();
-                    }
-                });
-                return; // Stop processing current scan until user decides
-            }
+            // MERGED LOT LOGIC REMOVED
+
             // 2. Fallback to Online Check if not found in cache
-            else if (navigator.onLine) {
+            if (navigator.onLine) {
                 try {
                     const res = await fetch(`/api/lots?q=${encodeURIComponent(lotId)}&checkMerge=true`);
                     if (res.ok) {
@@ -299,24 +270,8 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                         const found = data.items?.find((i: any) => i.lotCode === lotId);
                         // Check if mergedTo exists (primary signal) or status is MERGED
                         if (found && (found.mergedTo || found.status === 'MERGED')) {
-                            const newLotId = found.mergedTo || "UNKNOWN";
-                            showDialog({
-                                type: "warning",
-                                title: "Phát hiện Lot đã gộp",
-                                message: `Lot ${lotId} đã được gộp sang ${newLotId}.\nBạn có muốn sử dụng mã ${newLotId} thay thế không?`,
-                                confirmText: "Dùng mã mới",
-                                cancelText: "Giữ mã cũ",
-                                onConfirm: () => {
-                                    handleScan(newLotId); // Recursive call with new ID
-                                    closeDialog();
-                                },
-                                onCancel: () => {
-                                    // Continue with old ID (if user insists)
-                                    // Logic to add old ID...
-                                    closeDialog();
-                                }
-                            });
-                            return;
+                            // Logic for online check removed as user requested full removal of this feature
+                            // For now we just ignore it / treat as normal scan if it exists physically
                         }
                     }
                 } catch (e) {
@@ -1211,59 +1166,6 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                             <div className="text-xs text-zinc-500">Vị trí tĩnh (Locations)</div>
                             <div className="text-xl font-bold">{locations.length}</div>
                         </div>
-                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                            <div className="text-xs text-zinc-500">Vị trí đã chiếm (Occupied)</div>
-                            <div className="text-xl font-bold">{occupied ? Object.keys(occupied).length : 0}</div>
-                        </div>
-                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                            <div className="text-xs text-zinc-500">Lot đã gộp (Merged)</div>
-                            <div className="text-xl font-bold">{mergedLots ? Object.keys(mergedLots).length : 0}</div>
-                        </div>
-                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                            <div className="text-xs text-zinc-500">Lần cập nhật cuối</div>
-                            <div className="text-xs font-bold truncate">{lastUpdated ? new Date(lastUpdated).toLocaleString() : 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <h3 className="font-bold text-sm text-zinc-500 uppercase tracking-wider">Occupied Map (Top 500)</h3>
-                    <div className="bg-zinc-900 text-zinc-300 p-3 rounded-lg text-xs font-mono h-64 overflow-auto border border-zinc-700">
-                        {occupied && Object.keys(occupied).length > 0 ? (
-                            Object.entries(occupied).slice(0, 500).map(([pos, lot]) => (
-                                <div key={pos} className="border-b border-zinc-800/50 py-0.5 last:border-0">
-                                    <span className="text-emerald-400">{pos}</span>: <span className="text-white">{lot}</span>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="text-zinc-600 italic">Trống</div>
-                        )}
-                        {occupied && Object.keys(occupied).length > 500 && (
-                            <div className="mt-2 text-zinc-500 italic">... còn {Object.keys(occupied).length - 500} mục nữa ...</div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <h3 className="font-bold text-sm text-zinc-500 uppercase tracking-wider">Merged Lots Map</h3>
-                    <div className="bg-zinc-900 text-zinc-300 p-3 rounded-lg text-xs font-mono h-40 overflow-auto border border-zinc-700">
-                        {mergedLots && Object.keys(mergedLots).length > 0 ? (
-                            Object.entries(mergedLots).map(([oldLot, newLot]) => (
-                                <div key={oldLot} className="border-b border-zinc-800/50 py-0.5 last:border-0">
-                                    <span className="text-rose-400">{oldLot}</span> {`=>`} <span className="text-emerald-400">{newLot}</span>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="text-zinc-600 italic">Trống</div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <h3 className="font-bold text-sm text-zinc-500 uppercase tracking-wider">Static Locations Sample</h3>
-                    <div className="bg-zinc-900 text-zinc-300 p-3 rounded-lg text-xs font-mono h-32 overflow-auto border border-zinc-700">
-                        {locations.slice(0, 50).join(", ")}
-                        {locations.length > 50 && " ..."}
                     </div>
                 </div>
             </div>
