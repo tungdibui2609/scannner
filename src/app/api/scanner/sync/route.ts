@@ -65,21 +65,24 @@ export async function POST(request: Request) {
             }
         } catch { }
 
-        // Read lot_pos sheet ONCE for conflict checking
+        // Read lot_pos sheet ONCE for conflict checking and UPSERT logic
         const cur = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOT_POSITIONS_SHEET_RANGE });
         const rows = cur.data.values || [];
         const data = rows.slice(1); // Skip header
 
         // Create a map of Position -> LotCode for conflict lookup
         const positionMap = new Map<string, string>();
-        // Create a set of "LotCode|PositionCode" to avoid duplicate rows for the SAME assignment
-        const existingAssignments = new Set<string>();
+        // Create a map of LotCode -> Row number (1-based) for UPSERT logic
+        const lotPositionRows = new Map<string, number>();
 
-        data.forEach((r: any[]) => {
+        data.forEach((r: any[], index: number) => {
             const lCode = (r[0] || "").toString().trim();
             const pCode = (r[1] || "").toString().trim();
             if (pCode) positionMap.set(pCode.toUpperCase(), lCode);
-            if (lCode && pCode) existingAssignments.add(`${lCode}|${pCode.toUpperCase()}`);
+            // Store the first row for each LOT (for UPSERT - update existing row)
+            if (lCode && !lotPositionRows.has(lCode)) {
+                lotPositionRows.set(lCode, index + 2); // +2: skip header (1) and convert to 1-based index
+            }
         });
 
         for (const item of items) {
@@ -108,26 +111,42 @@ export async function POST(request: Request) {
                 continue;
             }
 
-            // Idempotency Check: If this specific assignment already exists, skip write
-            if (existingAssignments.has(`${lotCode.trim()}|${targetPos}`)) {
+            // Check if this LOT already has a position assignment (same position = skip)
+            const existingRow = lotPositionRows.get(lotCode.trim());
+            const existingPos = existingRow ? positionMap.get(targetPos) : null;
+
+            // If same LOT already assigned to same position, skip
+            if (existingRow && currentOccupant === lotCode.trim()) {
                 successCount++;
                 results.push({ lotCode, success: true, message: "Already assigned" });
-                console.log(`✓ Skipped (Duplicate) ${lotCode} -> ${posCode}`);
+                console.log(`✓ Skipped (Same assignment) ${lotCode} -> ${posCode}`);
                 continue;
             }
 
             try {
-                // ALWAYS APPEND new assignment to allow Multi-Position (Split Lot)
-                await sheets.spreadsheets.values.append({
-                    spreadsheetId: USER_SHEET_ID,
-                    range: `${tab}!A:B`,
-                    valueInputOption: "RAW",
-                    insertDataOption: "INSERT_ROWS",
-                    requestBody: { values: [[lotCode.trim(), posCode.trim()]] },
-                });
+                // UPSERT Logic: UPDATE if LOT exists, APPEND if new
+                if (existingRow) {
+                    // UPDATE existing row (like QLK dashboard)
+                    await sheets.spreadsheets.values.update({
+                        spreadsheetId: USER_SHEET_ID,
+                        range: `${tab}!A${existingRow}:B${existingRow}`,
+                        valueInputOption: "RAW",
+                        requestBody: { values: [[lotCode.trim(), posCode.trim()]] },
+                    });
+                    console.log(`✓ Updated ${lotCode} -> ${posCode} (Row ${existingRow})`);
+                } else {
+                    // APPEND new row
+                    await sheets.spreadsheets.values.append({
+                        spreadsheetId: USER_SHEET_ID,
+                        range: `${tab}!A:B`,
+                        valueInputOption: "RAW",
+                        insertDataOption: "INSERT_ROWS",
+                        requestBody: { values: [[lotCode.trim(), posCode.trim()]] },
+                    });
+                    console.log(`✓ Appended ${lotCode} -> ${posCode}`);
+                }
 
                 // Update LOTS sheet column O (Position) - Update to LATEST scanned position
-                // This keeps the "Main Location" indicator current, while lot_pos keeps history/multi-loc
                 const resLots = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOTS_SHEET_RANGE });
                 const rowsLots = resLots.data.values || [];
                 const toUpdateRows: number[] = [];
@@ -156,17 +175,19 @@ export async function POST(request: Request) {
                     details: {
                         lotCode: lotCode.trim(),
                         posCode: posCode.trim(),
-                        action: "Gán vị trí (từ QR)"
+                        action: existingRow ? "Cập nhật vị trí (từ QR)" : "Gán vị trí (từ QR)"
                     }
                 });
 
                 successCount++;
                 results.push({ lotCode, success: true });
-                console.log(`✓ Appended ${lotCode} -> ${posCode}`);
 
                 // Update local maps for subsequent items in the same batch
                 positionMap.set(targetPos, lotCode.trim());
-                existingAssignments.add(`${lotCode.trim()}|${targetPos}`);
+                if (!existingRow) {
+                    // Approximate: We don't know exact row, but it won't be used in same batch anyway
+                    lotPositionRows.set(lotCode.trim(), rows.length + 1);
+                }
 
             } catch (err: any) {
                 failCount++;
