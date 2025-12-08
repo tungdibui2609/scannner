@@ -12,7 +12,7 @@ export const LOCATIONS_SHEET_RANGE = "loc_map!A2:C"; // A=Code, B=Type, C=Desc (
 export const PRODUCTS_DISABLED_CODES_RANGE = "Products!P2:P"; // NEW: Disabled product codes
 
 // STATE & MAPPING
-export const LOT_POS_SHEET_RANGE = "lot_pos!A2:E"; // A=Lot, B=Pos, C=Qty, D=Updated, E=By
+export const LOT_POS_SHEET_RANGE = "lot_pos!A1:B"; // A=Lot, B=Pos - MUST start from A1 to include header for correct row calculation
 // Alias for compatibility
 export const LOT_POSITIONS_SHEET_RANGE = LOT_POS_SHEET_RANGE;
 
