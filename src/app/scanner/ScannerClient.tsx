@@ -197,28 +197,28 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                         localStorage.setItem("offline_merged_lots", JSON.stringify(data.mergedLots));
                     }
 
-                    // Sync Active Lots to List
-                    if (Array.isArray(data.activeLots)) {
-                        const serverItems: ScannedItem[] = data.activeLots.map((l: any) => ({
-                            id: l.lotCode,
-                            // Use a slightly older timestamp to ensure they appear as "original" but keep sort order
-                            timestamp: Date.now() - 1000,
-                            position: l.position,
-                            synced: true
-                        }));
+                    // Sync Active Lots to List -> DISABLED as per user request (restore old behavior)
+                    // if (Array.isArray(data.activeLots)) {
+                    //     const serverItems: ScannedItem[] = data.activeLots.map((l: any) => ({
+                    //         id: l.lotCode,
+                    //         // Use a slightly older timestamp to ensure they appear as "original" but keep sort order
+                    //         timestamp: Date.now() - 1000,
+                    //         position: l.position,
+                    //         synced: true
+                    //     }));
 
-                        setItems(prev => {
-                            // 1. Keep all local UNSYNCED items (User work in progress)
-                            const localUnsynced = prev.filter(i => !i.synced);
-                            const localUnsyncedIds = new Set(localUnsynced.map(i => i.id));
+                    //     setItems(prev => {
+                    //         // 1. Keep all local UNSYNCED items (User work in progress)
+                    //         const localUnsynced = prev.filter(i => !i.synced);
+                    //         const localUnsyncedIds = new Set(localUnsynced.map(i => i.id));
 
-                            // 2. Filter server items that don't conflict with local unsynced
-                            const validServerItems = serverItems.filter(i => !localUnsyncedIds.has(i.id));
+                    //         // 2. Filter server items that don't conflict with local unsynced
+                    //         const validServerItems = serverItems.filter(i => !localUnsyncedIds.has(i.id));
 
-                            // 3. Combine
-                            return [...localUnsynced, ...validServerItems];
-                        });
-                    }
+                    //         // 3. Combine
+                    //         return [...localUnsynced, ...validServerItems];
+                    //     });
+                    // }
 
                     const now = Date.now();
                     setLastUpdated(now);
