@@ -257,7 +257,7 @@ export async function POST(req: Request) {
             await sheets.spreadsheets.values.append({
                 spreadsheetId: USER_SHEET_ID,
                 range: DELETED_LOTS_TAB + "!A:S",
-                valueInputOption: "RAW",
+                valueInputOption: "USER_ENTERED",
                 requestBody: { values: deletedLotsRows },
             });
         }
@@ -296,7 +296,7 @@ export async function POST(req: Request) {
             await sheets.spreadsheets.values.append({
                 spreadsheetId: USER_SHEET_ID,
                 range: LOTS_SHEET_RANGE,
-                valueInputOption: "RAW",
+                valueInputOption: "USER_ENTERED",
                 requestBody: { values: updatedLotRows },
             });
         }
