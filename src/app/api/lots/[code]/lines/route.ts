@@ -14,7 +14,8 @@ async function getSheets(scopes: string[]) {
 // Using a loose type for context to be compatible across Next.js versions
 export async function GET(_req: NextRequest, context: any) {
     try {
-        const lotCode = decodeURIComponent((context?.params?.code || "")).trim();
+        const params = await context.params;
+        const lotCode = decodeURIComponent((params?.code || "")).trim();
         if (!lotCode) return NextResponse.json({ items: [] });
         const sheets = await getSheets(["https://www.googleapis.com/auth/spreadsheets.readonly"]);
         const res = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOTS_SHEET_RANGE });
@@ -23,7 +24,7 @@ export async function GET(_req: NextRequest, context: any) {
         const [, ...data] = rows;
         const items = data
             .map((r: any[]) => ({
-                lotCode: (r?.[0] || "").toString(),
+                lotCode: (r?.[0] || "").toString().trim(),
                 productCode: (r?.[1] || "").toString(),
                 productName: (r?.[2] || "").toString(),
                 productType: (r?.[3] || "").toString() || undefined,
