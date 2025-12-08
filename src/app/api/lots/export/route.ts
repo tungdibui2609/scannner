@@ -26,6 +26,18 @@ async function getSheetIdByTitle(sheets: any, spreadsheetId: string, title: stri
     return found.properties.sheetId as number;
 }
 
+// Helper to parse Vietnamese number format (e.g., "17,5" or "1.234,5")
+function parseVnNumber(str: string | number | undefined | null): number {
+    if (str === undefined || str === null || str === "") return 0;
+    if (typeof str === 'number') return str;
+    // Convert to string and trim
+    const s = str.toString().trim();
+    // Remove dots (thousand separators) and replace comma with dot
+    const clean = s.replace(/\./g, "").replace(",", ".");
+    const val = Number(clean);
+    return isNaN(val) ? 0 : val;
+}
+
 // Helper to get product info for conversion
 async function getProductInfo(sheets: any, productCode: string) {
     try {
@@ -154,11 +166,11 @@ export async function POST(req: Request) {
                 if (lineIndex < 0 || lineIndex >= updatedLotRows.length) continue;
 
                 const currentRow = updatedLotRows[lineIndex];
-                const currentQty = parseFloat(currentRow[10] || "0");
+                const currentQty = parseVnNumber(currentRow[10]);
                 const currentUnit = currentRow[11] || "";
                 const productCode = currentRow[1];
 
-                const exportQty = parseFloat(item.quantity || "0");
+                const exportQty = parseVnNumber(item.quantity);
                 const exportUnit = item.unit || currentUnit;
 
                 if (exportQty <= 0) continue;
@@ -172,9 +184,9 @@ export async function POST(req: Request) {
                     const getRatioToSmall = (unit: string) => {
                         const nUnit = normalizeUnit(unit);
                         if (nUnit === normalizeUnit(product.uomSmall || "")) return 1;
-                        const ratioSmallToMedium = parseFloat(product.ratioSmallToMedium || "0") || 0;
+                        const ratioSmallToMedium = parseVnNumber(product.ratioSmallToMedium);
                         if (nUnit === normalizeUnit(product.uomMedium || "")) return ratioSmallToMedium;
-                        const ratioMediumToLarge = parseFloat(product.ratioMediumToLarge || "0") || 0;
+                        const ratioMediumToLarge = parseVnNumber(product.ratioMediumToLarge);
                         if (nUnit === normalizeUnit(product.uomLarge || "")) return ratioMediumToLarge * ratioSmallToMedium;
                         return 0;
                     };
@@ -222,7 +234,7 @@ export async function POST(req: Request) {
             }
 
             // Filter out rows with 0 quantity (unless we want to keep empty lines? No, usually remove)
-            updatedLotRows = updatedLotRows.filter(row => parseFloat(row[10]) > 0);
+            updatedLotRows = updatedLotRows.filter(row => parseVnNumber(row[10]) > 0);
 
             // If all rows are gone, it becomes a full delete
             if (updatedLotRows.length === 0) {
