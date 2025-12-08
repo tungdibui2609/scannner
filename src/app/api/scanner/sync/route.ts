@@ -70,16 +70,16 @@ export async function POST(request: Request) {
         const rows = cur.data.values || [];
         const data = rows.slice(1); // Skip header
 
-        // Create a map of Position -> LotCode for fast lookup
+        // Create a map of Position -> LotCode for conflict lookup
         const positionMap = new Map<string, string>();
-        // Create a map of LotCode -> RowIndex for updates
-        const lotRowMap = new Map<string, number>();
+        // Create a set of "LotCode|PositionCode" to avoid duplicate rows for the SAME assignment
+        const existingAssignments = new Set<string>();
 
-        data.forEach((r: any[], idx: number) => {
+        data.forEach((r: any[]) => {
             const lCode = (r[0] || "").toString().trim();
             const pCode = (r[1] || "").toString().trim();
             if (pCode) positionMap.set(pCode.toUpperCase(), lCode);
-            if (lCode) lotRowMap.set(lCode, idx + 2); // 2 = 1 (header) + 1 (0-based)
+            if (lCode && pCode) existingAssignments.add(`${lCode}|${pCode.toUpperCase()}`);
         });
 
         for (const item of items) {
@@ -108,28 +108,26 @@ export async function POST(request: Request) {
                 continue;
             }
 
+            // Idempotency Check: If this specific assignment already exists, skip write
+            if (existingAssignments.has(`${lotCode.trim()}|${targetPos}`)) {
+                successCount++;
+                results.push({ lotCode, success: true, message: "Already assigned" });
+                console.log(`✓ Skipped (Duplicate) ${lotCode} -> ${posCode}`);
+                continue;
+            }
+
             try {
-                // Update lot_pos sheet
-                const absoluteRow = lotRowMap.get(lotCode.trim());
+                // ALWAYS APPEND new assignment to allow Multi-Position (Split Lot)
+                await sheets.spreadsheets.values.append({
+                    spreadsheetId: USER_SHEET_ID,
+                    range: `${tab}!A:B`,
+                    valueInputOption: "RAW",
+                    insertDataOption: "INSERT_ROWS",
+                    requestBody: { values: [[lotCode.trim(), posCode.trim()]] },
+                });
 
-                if (absoluteRow) {
-                    await sheets.spreadsheets.values.update({
-                        spreadsheetId: USER_SHEET_ID,
-                        range: `${tab}!A${absoluteRow}:B${absoluteRow}`,
-                        valueInputOption: "RAW",
-                        requestBody: { values: [[lotCode.trim(), posCode.trim()]] },
-                    });
-                } else {
-                    await sheets.spreadsheets.values.append({
-                        spreadsheetId: USER_SHEET_ID,
-                        range: `${tab}!A:B`,
-                        valueInputOption: "RAW",
-                        insertDataOption: "INSERT_ROWS",
-                        requestBody: { values: [[lotCode.trim(), posCode.trim()]] },
-                    });
-                }
-
-                // Update LOTS sheet column O (Position)
+                // Update LOTS sheet column O (Position) - Update to LATEST scanned position
+                // This keeps the "Main Location" indicator current, while lot_pos keeps history/multi-loc
                 const resLots = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOTS_SHEET_RANGE });
                 const rowsLots = resLots.data.values || [];
                 const toUpdateRows: number[] = [];
@@ -164,10 +162,11 @@ export async function POST(request: Request) {
 
                 successCount++;
                 results.push({ lotCode, success: true });
-                console.log(`✓ Updated ${lotCode} -> ${posCode}`);
+                console.log(`✓ Appended ${lotCode} -> ${posCode}`);
 
-                // Update local map for subsequent items in the same batch
+                // Update local maps for subsequent items in the same batch
                 positionMap.set(targetPos, lotCode.trim());
+                existingAssignments.add(`${lotCode.trim()}|${targetPos}`);
 
             } catch (err: any) {
                 failCount++;
