@@ -26,6 +26,7 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
     const [items, setItems] = useState<ScannedItem[]>([]);
     const [isOnline, setIsOnline] = useState<boolean>(true);
     const [showScanner, setShowScanner] = useState(false);
+    const [showDebug, setShowDebug] = useState(false);
     const [lastScanned, setLastScanned] = useState<string | null>(null);
 
     const [locations, setLocations] = useState<string[]>([]);
@@ -1124,6 +1125,14 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                             ⚠️ Cần tải dữ liệu để sử dụng các tính năng.
                         </div>
                     )}
+
+                    <button
+                        onClick={() => setShowDebug(true)}
+                        className="w-full mt-3 py-2 bg-white dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-medium flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        🔍 Xem dữ liệu thô (Debug)
+                    </button>
                 </div>
 
                 <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
@@ -1181,6 +1190,87 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             </div>
         </div>
     );
+
+    const renderDebug = () => (
+        <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col">
+            <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between shadow-sm flex-shrink-0">
+                <h1 className="font-bold text-lg">Dữ liệu thô (Debug)</h1>
+                <button
+                    onClick={() => setShowDebug(false)}
+                    className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-sm font-medium"
+                >
+                    Đóng
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4 space-y-6">
+                <div className="space-y-2">
+                    <h3 className="font-bold text-sm text-zinc-500 uppercase tracking-wider">Thống kê chung</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                            <div className="text-xs text-zinc-500">Vị trí tĩnh (Locations)</div>
+                            <div className="text-xl font-bold">{locations.length}</div>
+                        </div>
+                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                            <div className="text-xs text-zinc-500">Vị trí đã chiếm (Occupied)</div>
+                            <div className="text-xl font-bold">{occupied ? Object.keys(occupied).length : 0}</div>
+                        </div>
+                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                            <div className="text-xs text-zinc-500">Lot đã gộp (Merged)</div>
+                            <div className="text-xl font-bold">{mergedLots ? Object.keys(mergedLots).length : 0}</div>
+                        </div>
+                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                            <div className="text-xs text-zinc-500">Lần cập nhật cuối</div>
+                            <div className="text-xs font-bold truncate">{lastUpdated ? new Date(lastUpdated).toLocaleString() : 'N/A'}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <h3 className="font-bold text-sm text-zinc-500 uppercase tracking-wider">Occupied Map (Top 500)</h3>
+                    <div className="bg-zinc-900 text-zinc-300 p-3 rounded-lg text-xs font-mono h-64 overflow-auto border border-zinc-700">
+                        {occupied && Object.keys(occupied).length > 0 ? (
+                            Object.entries(occupied).slice(0, 500).map(([pos, lot]) => (
+                                <div key={pos} className="border-b border-zinc-800/50 py-0.5 last:border-0">
+                                    <span className="text-emerald-400">{pos}</span>: <span className="text-white">{lot}</span>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-zinc-600 italic">Trống</div>
+                        )}
+                        {occupied && Object.keys(occupied).length > 500 && (
+                            <div className="mt-2 text-zinc-500 italic">... còn {Object.keys(occupied).length - 500} mục nữa ...</div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <h3 className="font-bold text-sm text-zinc-500 uppercase tracking-wider">Merged Lots Map</h3>
+                    <div className="bg-zinc-900 text-zinc-300 p-3 rounded-lg text-xs font-mono h-40 overflow-auto border border-zinc-700">
+                        {mergedLots && Object.keys(mergedLots).length > 0 ? (
+                            Object.entries(mergedLots).map(([oldLot, newLot]) => (
+                                <div key={oldLot} className="border-b border-zinc-800/50 py-0.5 last:border-0">
+                                    <span className="text-rose-400">{oldLot}</span> {`=>`} <span className="text-emerald-400">{newLot}</span>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-zinc-600 italic">Trống</div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <h3 className="font-bold text-sm text-zinc-500 uppercase tracking-wider">Static Locations Sample</h3>
+                    <div className="bg-zinc-900 text-zinc-300 p-3 rounded-lg text-xs font-mono h-32 overflow-auto border border-zinc-700">
+                        {locations.slice(0, 50).join(", ")}
+                        {locations.length > 50 && " ..."}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    if (showDebug) return renderDebug();
 
     return (
         <>
