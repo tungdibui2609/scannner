@@ -1,3 +1,10 @@
+/**
+ * SCANNER SYNC API - COMPLETE COPY FROM QLK DASHBOARD
+ * 
+ * This is an EXACT copy of /api/locations/positions PUT method from QLK dashboard.
+ * The only difference is it accepts batch items instead of single item.
+ */
+
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { ensureGoogleKeyFromB64, getGoogleCredentials } from "@/lib/env";
@@ -8,6 +15,10 @@ import { cookies } from "next/headers";
 
 ensureGoogleKeyFromB64();
 
+function getTab(range: string) {
+    return (range.split("!")[0] || "lot_pos");
+}
+
 async function getSheets(scopes: string[]) {
     const { email, key } = getGoogleCredentials();
     const jwt = new google.auth.JWT({ email, key, scopes });
@@ -15,16 +26,102 @@ async function getSheets(scopes: string[]) {
 }
 
 /**
- * Sync position assignments from scanner app.
- * 
- * Strategy: Read -> Modify in memory -> Write back
- * Same approach as updating LOTS sheet column O (which works correctly!)
- * 
- * For lot_pos:
- * - Read all rows
- * - Modify: if LOT exists, update its position; if new, add to array
- * - Write entire data back using values.update (NOT deleteDimension)
+ * Single item position update - EXACT COPY from QLK dashboard PUT method
  */
+async function updateSinglePosition(
+    sheets: any,
+    lotCode: string,
+    posCode: string,
+    username: string,
+    nameFromCookie: string
+): Promise<{ ok: boolean; error?: string; oldPosCode?: string }> {
+    const tab = getTab(LOT_POSITIONS_SHEET_RANGE);
+
+    // Ensure tab exists
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: USER_SHEET_ID });
+    const found = meta.data.sheets?.find((s: any) => s.properties?.title === tab);
+    const sheetGid = found?.properties?.sheetId;
+
+    if (typeof sheetGid !== "number") {
+        await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: USER_SHEET_ID,
+            requestBody: { requests: [{ addSheet: { properties: { title: tab } } }] },
+        });
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: USER_SHEET_ID,
+            range: `${tab}!A1:B1`,
+            valueInputOption: "RAW",
+            requestBody: { values: [["LotCode", "PositionCode"]] },
+        });
+    }
+
+    // Read current data - EXACT COPY
+    const cur = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOT_POSITIONS_SHEET_RANGE });
+    const rows = cur.data.values || [];
+    const header = rows[0] || ["LotCode", "PositionCode"];
+    const data = rows.slice(1);
+
+    // Find LOT row - EXACT COPY
+    const idx = data.findIndex((r: any[]) => ((r?.[0] || "").toString().trim() === lotCode));
+    const oldPosCode = idx >= 0 ? ((data[idx]?.[1] || '').toString().trim()) : '';
+
+    console.log(`[SYNC] LOT=${lotCode}, pos=${posCode}, idx=${idx}, oldPos=${oldPosCode}`);
+
+    // UPDATE or APPEND - EXACT COPY
+    if (idx >= 0) {
+        const absoluteRow = 2 + idx;
+        console.log(`[SYNC] UPDATE row ${absoluteRow}`);
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: USER_SHEET_ID,
+            range: `${tab}!A${absoluteRow}:B${absoluteRow}`,
+            valueInputOption: "RAW",
+            requestBody: { values: [[lotCode, posCode]] },
+        });
+    } else {
+        console.log(`[SYNC] APPEND new row`);
+        if (!rows.length) {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: USER_SHEET_ID,
+                range: `${tab}!A1:B1`,
+                valueInputOption: "RAW",
+                requestBody: { values: [[...header]] },
+            });
+        }
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: USER_SHEET_ID,
+            range: `${tab}!A:B`,
+            valueInputOption: "RAW",
+            insertDataOption: "INSERT_ROWS",
+            requestBody: { values: [[lotCode, posCode]] },
+        });
+    }
+
+    // Update LOTS sheet column O - EXACT COPY
+    try {
+        const tabLots = (LOTS_SHEET_RANGE.split('!')[0] || 'lot');
+        const resLots = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: `${tabLots}!A:A` });
+        const rowsLots = resLots.data.values || [];
+        const toUpdateRows: number[] = [];
+        for (let i = 1; i < rowsLots.length; i++) {
+            const r = rowsLots[i] || [];
+            if (((r[0] || '').toString() === lotCode)) toUpdateRows.push(i + 1);
+        }
+        if (toUpdateRows.length) {
+            const dataReq = toUpdateRows.map((row) => ({ range: `${tabLots}!O${row}:O${row}`, values: [[posCode]] }));
+            await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: USER_SHEET_ID, requestBody: { valueInputOption: 'RAW', data: dataReq } });
+        }
+    } catch { }
+
+    // Audit log
+    const auditDetails: any = { lotCode, posCode };
+    if (oldPosCode && oldPosCode !== posCode) {
+        auditDetails.oldPosCode = oldPosCode;
+    }
+    appendAuditLog({ ts: getVNTimestamp(), username, name: nameFromCookie || undefined, method: "PUT", path: "/api/locations/positions", details: auditDetails });
+
+    return { ok: true, oldPosCode };
+}
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -34,27 +131,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "No items to sync" }, { status: 400 });
         }
 
-        console.log("=== SCANNER SYNC (READ-MODIFY-WRITE) START ===");
-        console.log("Items:", items.length);
+        console.log("=== SCANNER SYNC START ===");
+        console.log("Total items:", items.length);
 
         const sheets = await getSheets(["https://www.googleapis.com/auth/spreadsheets"]);
-        const tab = LOT_POSITIONS_SHEET_RANGE.split("!")[0] || "lot_pos";
-
-        // Ensure lot_pos tab exists
-        const meta = await sheets.spreadsheets.get({ spreadsheetId: USER_SHEET_ID });
-        const found = meta.data.sheets?.find((s: any) => s.properties?.title === tab);
-        if (!found) {
-            await sheets.spreadsheets.batchUpdate({
-                spreadsheetId: USER_SHEET_ID,
-                requestBody: { requests: [{ addSheet: { properties: { title: tab } } }] },
-            });
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: USER_SHEET_ID,
-                range: `${tab}!A1:B1`,
-                valueInputOption: "RAW",
-                requestBody: { values: [["LotCode", "PositionCode"]] },
-            });
-        }
 
         // Get user info
         let username = "";
@@ -73,11 +153,10 @@ export async function POST(request: Request) {
         let successCount = 0;
         let failCount = 0;
 
+        // Process ONE BY ONE using the EXACT same logic as QLK dashboard
         for (const item of items) {
             const lotCode = (item.id || "").toString().trim();
             const posCode = (item.position || "").toString().trim();
-
-            console.log(`\n--- Processing: ${lotCode} -> ${posCode} ---`);
 
             if (!lotCode || !posCode) {
                 failCount++;
@@ -86,154 +165,22 @@ export async function POST(request: Request) {
             }
 
             try {
-                // Step 1: Read ALL lot_pos data
-                const res = await sheets.spreadsheets.values.get({
-                    spreadsheetId: USER_SHEET_ID,
-                    range: LOT_POSITIONS_SHEET_RANGE
-                });
-                const allRows = res.data.values || [];
-
-                // Ensure header exists
-                if (allRows.length === 0) {
-                    allRows.push(["LotCode", "PositionCode"]);
-                }
-
-                console.log(`Read ${allRows.length} rows (including header)`);
-
-                // Step 2: Build data array and check for conflicts
-                // data = all rows except header
-                const header = allRows[0];
-                const data: [string, string][] = [];
-
-                let existingRowIndex = -1; // index in data array (not allRows)
-                let oldPosCode = "";
-                let conflictLot = "";
-                const targetPosUpper = posCode.toUpperCase();
-
-                for (let i = 1; i < allRows.length; i++) {
-                    const row = allRows[i] || [];
-                    const rowLot = (row[0] || "").toString().trim();
-                    const rowPos = (row[1] || "").toString().trim();
-
-                    // Check if this is the LOT we're updating
-                    if (rowLot === lotCode) {
-                        existingRowIndex = data.length; // will be the index after push
-                        oldPosCode = rowPos;
-                    }
-
-                    // Check for conflict
-                    if (rowPos.toUpperCase() === targetPosUpper && rowLot !== lotCode) {
-                        conflictLot = rowLot;
-                    }
-
-                    data.push([rowLot, rowPos]);
-                }
-
-                // Conflict check
-                if (conflictLot) {
-                    failCount++;
-                    results.push({
-                        lotCode,
-                        success: false,
-                        error: `Vị trí ${posCode} đã có ${conflictLot}`,
-                        conflict: true,
-                        currentOccupant: conflictLot
-                    });
-                    console.log(`CONFLICT: ${posCode} -> ${conflictLot}`);
-                    continue;
-                }
-
-                // Check if same assignment already
-                if (existingRowIndex >= 0 && oldPosCode.toUpperCase() === targetPosUpper) {
+                const result = await updateSinglePosition(sheets, lotCode, posCode, username, nameFromCookie);
+                if (result.ok) {
                     successCount++;
-                    results.push({ lotCode, success: true, message: "Already assigned" });
-                    console.log("SKIP: Same assignment");
-                    continue;
-                }
-
-                // Step 3: Modify data in memory
-                if (existingRowIndex >= 0) {
-                    // UPDATE existing entry
-                    data[existingRowIndex] = [lotCode, posCode];
-                    console.log(`MODIFIED data[${existingRowIndex}]: ${lotCode} -> ${posCode} (was ${oldPosCode})`);
+                    results.push({ lotCode, success: true, oldPosCode: result.oldPosCode });
                 } else {
-                    // ADD new entry
-                    data.push([lotCode, posCode]);
-                    console.log(`ADDED to data: ${lotCode} -> ${posCode}`);
+                    failCount++;
+                    results.push({ lotCode, success: false, error: result.error });
                 }
-
-                // Step 4: Write back ENTIRE sheet using values.update
-                // This is the SAME method used for LOTS sheet column O (which works!)
-                const newAllRows = [header, ...data];
-                const writeRange = `${tab}!A1:B${newAllRows.length}`;
-
-                console.log(`WRITING ${newAllRows.length} rows to ${writeRange}`);
-
-                await sheets.spreadsheets.values.update({
-                    spreadsheetId: USER_SHEET_ID,
-                    range: writeRange,
-                    valueInputOption: "RAW",
-                    requestBody: { values: newAllRows },
-                });
-
-                console.log(`SUCCESS: Written to sheet`);
-
-                // Step 5: Update LOTS sheet column O (same as before - this works)
-                try {
-                    const tabLots = LOTS_SHEET_RANGE.split('!')[0] || 'lot';
-                    const lotsRes = await sheets.spreadsheets.values.get({
-                        spreadsheetId: USER_SHEET_ID,
-                        range: LOTS_SHEET_RANGE
-                    });
-                    const lotsRows = lotsRes.data.values || [];
-                    const updateData: { range: string; values: any[][] }[] = [];
-
-                    for (let i = 1; i < lotsRows.length; i++) {
-                        const row = lotsRows[i] || [];
-                        if ((row[0] || "").toString().trim() === lotCode) {
-                            updateData.push({
-                                range: `${tabLots}!O${i + 1}`,
-                                values: [[posCode]]
-                            });
-                        }
-                    }
-
-                    if (updateData.length > 0) {
-                        await sheets.spreadsheets.values.batchUpdate({
-                            spreadsheetId: USER_SHEET_ID,
-                            requestBody: { valueInputOption: 'RAW', data: updateData }
-                        });
-                    }
-                } catch (e) {
-                    console.error("Error updating LOTS:", e);
-                }
-
-                // Step 6: Audit log
-                appendAuditLog({
-                    ts: getVNTimestamp(),
-                    username: username || "scanner",
-                    name: nameFromCookie || undefined,
-                    method: "PUT",
-                    path: "/api/locations/positions",
-                    details: {
-                        lotCode,
-                        posCode,
-                        oldPosCode: oldPosCode || undefined,
-                        action: oldPosCode ? "Cập nhật vị trí (QR)" : "Gán vị trí mới (QR)"
-                    }
-                });
-
-                successCount++;
-                results.push({ lotCode, success: true });
-
             } catch (err: any) {
                 failCount++;
                 results.push({ lotCode, success: false, error: err.message });
-                console.error(`ERROR ${lotCode}:`, err.message);
+                console.error(`[SYNC] ERROR for ${lotCode}:`, err.message);
             }
         }
 
-        console.log(`\n=== SYNC DONE: ${successCount} OK, ${failCount} FAIL ===\n`);
+        console.log(`=== SYNC DONE: ${successCount} OK, ${failCount} FAIL ===`);
 
         return NextResponse.json({
             success: true,
