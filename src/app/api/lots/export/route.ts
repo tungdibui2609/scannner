@@ -293,11 +293,17 @@ export async function POST(req: Request) {
 
         // If PARTIAL and we have remaining items, append them back
         if (mode === "PARTIAL" && updatedLotRows.length > 0) {
+            // Ensure each row has 16 columns (A-P) to prevent data misalignment
+            const paddedRows = updatedLotRows.map(row => {
+                const padded = [...row];
+                while (padded.length < 16) padded.push("");
+                return padded.slice(0, 16); // Ensure exactly 16 columns
+            });
             await sheets.spreadsheets.values.append({
                 spreadsheetId: USER_SHEET_ID,
                 range: LOTS_SHEET_RANGE,
                 valueInputOption: "USER_ENTERED",
-                requestBody: { values: updatedLotRows },
+                requestBody: { values: paddedRows },
             });
         }
 
