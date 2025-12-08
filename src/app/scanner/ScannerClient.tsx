@@ -401,6 +401,12 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
         setItems(newItems);
     };
 
+    const clearSyncedItems = () => {
+        if (window.confirm("Bạn có chắc muốn xóa tất cả các mục đã đồng bộ khỏi danh sách không?")) {
+            setItems(prev => prev.filter(i => !i.synced));
+        }
+    };
+
     const handleSync = async () => {
         if (!isOnline) {
             showDialog({ type: "error", title: "Lỗi", message: "Không có kết nối mạng!" });
@@ -739,12 +745,23 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                             <h2 className="font-bold text-zinc-900 dark:text-zinc-100">Danh sách ({items.length})</h2>
-                            {items.length > 0 && (
-                                <button onClick={handleSync} disabled={!isOnline} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors">
-                                    <UploadCloud size={16} />
-                                    Đồng bộ
-                                </button>
-                            )}
+                            <div className="flex gap-2">
+                                {items.some(i => i.synced) && (
+                                    <button
+                                        onClick={clearSyncedItems}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                                        title="Xóa các mục đã xong"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
+                                {items.length > 0 && (
+                                    <button onClick={handleSync} disabled={!isOnline} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors">
+                                        <UploadCloud size={16} />
+                                        Đồng bộ
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {items.length === 0 ? (
