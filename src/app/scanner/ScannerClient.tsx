@@ -402,9 +402,8 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
     };
 
     const clearSyncedItems = () => {
-        if (window.confirm("Bạn có chắc muốn xóa tất cả các mục đã đồng bộ khỏi danh sách không?")) {
-            setItems(prev => prev.filter(i => !i.synced));
-        }
+        // No confirmation needed - just clear synced items
+        setItems(prev => prev.filter(i => !i.synced));
     };
 
     const handleSync = async () => {
@@ -652,6 +651,7 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                 onConfirm: () => {
                     setExportStep('scan');
                     setExportData(null);
+                    setShowScanner(true); // Auto-open scanner for next scan
                     closeDialog();
                 }
             });
@@ -746,6 +746,17 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                         <div className="flex items-center justify-between">
                             <h2 className="font-bold text-zinc-900 dark:text-zinc-100">Danh sách ({items.length})</h2>
                             <div className="flex gap-2">
+                                {/* Quét tiếp button - always show when scanner is closed */}
+                                {!showScanner && (
+                                    <button
+                                        onClick={() => setShowScanner(true)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+                                        title="Quét mã tiếp"
+                                    >
+                                        <Package size={16} />
+                                        Quét tiếp
+                                    </button>
+                                )}
                                 {items.some(i => i.synced) && (
                                     <button
                                         onClick={clearSyncedItems}
@@ -866,8 +877,12 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
                                     <div className="text-xs text-zinc-500">Mã LOT</div>
                                     <div className="font-bold text-lg text-rose-600 dark:text-rose-400">{exportData?.lotCode}</div>
                                 </div>
-                                <button onClick={() => { setExportStep('scan'); setExportData(null); }} className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-zinc-500">
-                                    <RefreshCw size={16} />
+                                <button
+                                    onClick={() => { setExportStep('scan'); setExportData(null); setShowScanner(true); }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+                                >
+                                    <Package size={14} />
+                                    Quét LOT khác
                                 </button>
                             </div>
 
