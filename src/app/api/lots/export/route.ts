@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { ensureGoogleKeyFromB64, getGoogleCredentials } from "@/lib/env";
-import { LOTS_SHEET_RANGE, DELETED_LOTS_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
+import { LOTS_SHEET_RANGE, DELETED_LOTS_SHEET_RANGE, LOT_POS_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
 import { appendAuditLog } from "@/lib/auditLog";
 import { cookies } from "next/headers";
 import { getVNTimestamp } from "@/lib/vnDateTime";
