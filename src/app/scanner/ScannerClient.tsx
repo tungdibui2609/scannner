@@ -98,28 +98,46 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
         const saved = localStorage.getItem("offline_scanned_items");
         if (saved) {
             try {
-                setItems(JSON.parse(saved));
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    setItems(parsed);
+                } else {
+                    setItems([]);
+                }
             } catch (e) {
                 console.error("Failed to load saved items, clearing...", e);
                 localStorage.removeItem("offline_scanned_items");
+                setItems([]);
             }
         }
 
         const savedLocations = localStorage.getItem("offline_static_locations");
         if (savedLocations) {
             try {
-                setLocations(JSON.parse(savedLocations));
+                const parsed = JSON.parse(savedLocations);
+                if (Array.isArray(parsed)) {
+                    setLocations(parsed);
+                } else {
+                    setLocations([]);
+                }
             } catch (e) {
                 localStorage.removeItem("offline_static_locations");
+                setLocations([]);
             }
         }
 
         const savedOccupied = localStorage.getItem("offline_occupied_locations");
         if (savedOccupied) {
             try {
-                setOccupied(JSON.parse(savedOccupied));
+                const parsed = JSON.parse(savedOccupied);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    setOccupied(parsed);
+                } else {
+                    setOccupied({});
+                }
             } catch (e) {
                 localStorage.removeItem("offline_occupied_locations");
+                setOccupied({});
             }
         }
 
@@ -191,9 +209,10 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             const res = await fetch("/api/scanner/occupied");
             if (res.ok) {
                 const data = await res.json();
-                if (data.ok && data.occupied) {
-                    setOccupied(data.occupied);
-                    localStorage.setItem("offline_occupied_locations", JSON.stringify(data.occupied));
+                if (data.ok) {
+                    const safeOccupied = (data.occupied && typeof data.occupied === 'object') ? data.occupied : {};
+                    setOccupied(safeOccupied);
+                    localStorage.setItem("offline_occupied_locations", JSON.stringify(safeOccupied));
 
                     // Sync Active Lots to List -> DISABLED as per user request (restore old behavior)
                     // if (Array.isArray(data.activeLots)) {
