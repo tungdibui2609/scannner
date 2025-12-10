@@ -26,7 +26,36 @@ interface ScannerClientProps {
 
 export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerClientProps) {
     const [isAuthenticated, setIsAuthenticated] = useState(initialAuth);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
     const [items, setItems] = useState<ScannedItem[]>([]);
+
+    // ... (other state)
+
+    useEffect(() => {
+        // Check client-side persistence for auth
+        const persistedAuth = localStorage.getItem("scanner_is_logged_in");
+        if (persistedAuth === "true") {
+            setIsAuthenticated(true);
+        }
+        setIsCheckingAuth(false);
+
+        const saved = localStorage.getItem("offline_scanned_items");
+        // ... (rest of logic)
+    }, []);
+
+    // ...
+
+    // Move this logic UP, before other renders but after hooks
+    // We need to return early if checking, BUT we must ensure hooks rule is not broken.
+    // Use an overlay or simply modify the return block.
+
+    // ...
+
+    // Actually, looking at the code structure, the return is at the bottom.
+    // I need to search for the return block or insert the check early.
+    // But hooks must run. So I should place the check right before the existing `if (!isAuthenticated)` block.
+
+    // Let's modify the variable declarations first.
     const [isOnline, setIsOnline] = useState<boolean>(true);
     const [showScanner, setShowScanner] = useState(false);
     const [showDebug, setShowDebug] = useState(false);
@@ -694,6 +723,17 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
     // --- End Export Logic ---
 
     const [currentView, setCurrentView] = useState<'assign' | 'export' | 'inventory' | 'settings'>('assign');
+
+    if (isCheckingAuth) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+                <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-2 border-zinc-900 dark:border-zinc-100 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-sm text-zinc-500 font-medium">Đang kiểm tra đăng nhập...</p>
+                </div>
+            </div>
+        );
+    }
 
     if (!isAuthenticated) {
         return <LoginForm onSuccess={() => {
