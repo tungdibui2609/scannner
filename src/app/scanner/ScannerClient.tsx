@@ -724,16 +724,7 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
 
     const [currentView, setCurrentView] = useState<'assign' | 'export' | 'inventory' | 'settings'>('assign');
 
-    if (isCheckingAuth) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-                <div className="flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 border-2 border-zinc-900 dark:border-zinc-100 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm text-zinc-500 font-medium">Đang kiểm tra đăng nhập...</p>
-                </div>
-            </div>
-        );
-    }
+
 
     if (!isAuthenticated) {
         return <LoginForm onSuccess={() => {
@@ -1270,6 +1261,17 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             </div>
         </div>
     );
+
+    if (isCheckingAuth) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+                <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-2 border-zinc-900 dark:border-zinc-100 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-sm text-zinc-500 font-medium">Đang kiểm tra đăng nhập...</p>
+                </div>
+            </div>
+        );
+    }
 
     if (showDebug) return renderDebug();
 
