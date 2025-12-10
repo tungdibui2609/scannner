@@ -100,7 +100,8 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
             try {
                 setItems(JSON.parse(saved));
             } catch (e) {
-                console.error("Failed to load saved items", e);
+                console.error("Failed to load saved items, clearing...", e);
+                localStorage.removeItem("offline_scanned_items");
             }
         }
 
@@ -108,14 +109,18 @@ export default function ScannerClient({ isAuthenticated: initialAuth }: ScannerC
         if (savedLocations) {
             try {
                 setLocations(JSON.parse(savedLocations));
-            } catch (e) { }
+            } catch (e) {
+                localStorage.removeItem("offline_static_locations");
+            }
         }
 
         const savedOccupied = localStorage.getItem("offline_occupied_locations");
         if (savedOccupied) {
             try {
                 setOccupied(JSON.parse(savedOccupied));
-            } catch (e) { }
+            } catch (e) {
+                localStorage.removeItem("offline_occupied_locations");
+            }
         }
 
 
