@@ -1,4 +1,4 @@
-const CACHE_NAME = "scanner-cache-v8";
+const CACHE_NAME = "scanner-cache-v9";
 
 self.addEventListener("install", (event) => {
     // Force this SW to become the active one immediately
@@ -50,9 +50,19 @@ self.addEventListener("fetch", (event) => {
                         return networkResponse;
                     });
                 })
-                .catch(() => {
+                .catch(async () => {
                     // If offline, fallback to cache
-                    return caches.match(event.request);
+                    const cachedResponse = await caches.match(event.request);
+                    if (cachedResponse) return cachedResponse;
+
+                    // Final fallback to avoid white screen
+                    return new Response(
+                        '<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Mất kết nối</title><style>body{font-family:-apple-system, system-ui, sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;background:#f4f4f5;color:#18181b;}h1{font-size:1.5rem;margin-bottom:0.5rem;}p{color:#71717a;}</style></head><body><h1>Không có kết nối mạng</h1><p>Vui lòng kiểm tra đường truyền và thử lại.</p><button onclick="window.location.reload()" style="margin-top:1.5rem;padding:0.75rem 1.5rem;background:#10b981;color:white;border:none;border-radius:0.5rem;font-weight:bold;cursor:pointer;">Thử lại</button></body></html>',
+                        {
+                            status: 200,
+                            headers: { 'Content-Type': 'text/html; charset=utf-8' }
+                        }
+                    );
                 })
         );
         return;

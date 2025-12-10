@@ -8,7 +8,10 @@ import ScannerDialog, { DialogType } from "@/components/scanner/ScannerDialog";
 import { useProducts } from "@/hooks/useProducts";
 import { normalizeUnit } from "@/lib/conversionHelper";
 
-const QRScanner = dynamic(() => import("@/components/scanner/QRScanner"), { ssr: false });
+const QRScanner = dynamic(() => import("@/components/scanner/QRScanner"), {
+    ssr: false,
+    loading: () => <div className="h-[300px] w-full bg-zinc-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center animate-pulse"><p className="text-zinc-400 font-medium">Đang tải camera...</p></div>
+});
 
 interface ScannedItem {
     id: string;
