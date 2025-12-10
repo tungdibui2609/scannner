@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { ensureGoogleKeyFromB64, getGoogleCredentials } from "@/lib/env";
-import { LOTS_SHEET_RANGE, LOT_POSITIONS_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
+import { LOTS_SHEET_RANGE, USER_SHEET_ID } from "@/config/sheets";
 
 ensureGoogleKeyFromB64();
 
@@ -53,23 +53,8 @@ export async function GET() {
             console.error("Error fetching LOTS sheet", e);
         }
 
-        // 2. Fallback/Supplement from lot_pos sheet if needed
-        if (Object.keys(occupied).length === 0) {
-            try {
-                const res = await sheets.spreadsheets.values.get({ spreadsheetId: USER_SHEET_ID, range: LOT_POSITIONS_SHEET_RANGE });
-                const rows = res.data.values || [];
-                const [, ...data] = rows;
-                data.forEach((r: any[]) => {
-                    const lot = (r?.[0] || "").toString().trim();
-                    const pos = (r?.[1] || "").toString().trim();
-                    if (lot && pos) {
-                        occupied[pos] = lot;
-                    }
-                });
-            } catch (e) {
-                console.error("Error fetching lot_pos sheet", e);
-            }
-        }
+        // 2. Fallback/Supplement from lot_pos sheet - REMOVED for SSoT
+        // The Single Source of Truth is now the LOT sheet (Column O).
 
         return NextResponse.json({
             ok: true,
